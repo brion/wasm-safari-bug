@@ -21,6 +21,7 @@ Source/deps
 * upstream ogv.js - https://github.com/brion/ogv.js tag wasm-safari-bug-1
 * upstream dav1d - https://code.videolan.org/brion/dav1d - tag wasm-simd6
 * emscripten 3.1.47
+* webkit bug report - https://bugs.webkit.org/show_bug.cgi?id=263913
 
 -- brion vibber
 2023-10-30
