@@ -21,31 +21,9 @@
         <h2>Results</h2>
         <div id=output></div>
 
-        <script src="lib/ogv-demuxer-webm.js"></script>
         <script src="lib/ogv-decoder-video-av1.js"></script>
 
         <script>
-            function demuxer_init(demuxer) {
-                return new Promise((resolve, reject) => {
-                    demuxer.init(resolve);
-                });
-            }
-            function demuxer_receive_input(demuxer, data) {
-                return new Promise((resolve, reject) => {
-                    demuxer.receiveInput(data, resolve);
-                });
-            }
-            function demuxer_process(demuxer) {
-                return new Promise((resolve, reject) => {
-                    demuxer.process(resolve);
-                });
-            }
-            function demuxer_dequeue_video_packet(demuxer) {
-                return new Promise((resolve, reject) => {
-                    demuxer.dequeueVideoPacket(resolve);
-                });
-            }
-
             function decoder_init(codec) {
                 return new Promise((resolve, reject) => {
                     codec.init(resolve);
@@ -72,37 +50,33 @@
             }
 
             function frameOk(frame) {
-                return frame.width == 1280
-                    && frame.height == 720;
+                console.log(frame);
+                return frame.format.width == 1280
+                    && frame.format.height == 720;
+            }
+
+            async function readFile(url) {
+                let response = await fetch(url);
+                return await response.arrayBuffer();
+            }
+
+            async function readJson(url) {
+                let response = await fetch(url);
+                return await response.json();
             }
 
             (async function doit() {
+                // packets extracted from Graupel_Graupelschauer_2023-04-13_av1.webm
                 log('initializing...');
-                let demuxer = await OGVDemuxerWebM({base: 'lib'});
-                let response = await fetch('Graupel_Graupelschauer_2023-04-13_av1.webm');
-                let bytes = await response.arrayBuffer();
                 let packets = [];
-
-                log('demuxing input...');
-                await demuxer_init(demuxer);
-                await demuxer_receive_input(demuxer, bytes);
-                while (true) {
-                    let ret = await demuxer_process(demuxer);
-                    if (!ret) {
-                        break;
-                    }
-                    if (demuxer.frameReady) {
-                        let packet = await demuxer_dequeue_video_packet(demuxer);
-                        packets.push(packet);
-                    }
-                }
-
-                log(`${packets.length} video packet(s) extracted`);
+                packets.push(await readFile('packet0.dat'));
+                packets.push(await readFile('packet1.dat'));
+                let videoFormat = readJson('videoFormat.json');
 
                 log('initializing dav1d av1 codec');
                 let codec = await OGVDecoderVideoAV1({
                     base: 'lib',
-                    videoFormat: demuxer.videoFormat
+                    videoFormat
                 });
                 await decoder_init(codec);
 
