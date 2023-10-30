@@ -9,4 +9,8 @@ and remains in latest.
 The symptom is a failed signature validation for call_indirect, which is
 likely due to corruption of a function pointer.
 
+Live copy at
+
+https://brionv.com/misc/wasm-safari-bug/
+
 -- brion vibber
