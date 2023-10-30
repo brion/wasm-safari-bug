@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>Safari Wasm dav1d bug</title>
+    </head>
+    <body>
+        <h1>Safari Wasm dav1d bug</h1>
+        <p>
+            This build of an old work fork the dav1d AV1 codec at -O3 fails in Safari
+            when decoding, while it works in Firefox and Chrome.
+            Reported bug is a mismatch in signatures on an indirect call, which likely
+            indicates corruption of a function pointer.
+        </p>
+        <p>
+            I have not been able to narrow down exactly where it occurs, but it happens
+            in the second frame of the sample video, which is the first with interframe
+            encoding.
+        </p>
+
+        <h2>Results</h2>
+        <div id=output></div>
+
+        <script src="lib/ogv-demuxer-webm.js"></script>
+        <script src="lib/ogv-decoder-video-av1.js"></script>
+
+        <script>
+            function demuxer_init(demuxer) {
+                return new Promise((resolve, reject) => {
+                    demuxer.init(resolve);
+                });
+            }
+            function demuxer_receive_input(demuxer, data) {
+                return new Promise((resolve, reject) => {
+                    demuxer.receiveInput(data, resolve);
+                });
+            }
+            function demuxer_process(demuxer) {
+                return new Promise((resolve, reject) => {
+                    demuxer.process(resolve);
+                });
+            }
+            function demuxer_dequeue_video_packet(demuxer) {
+                return new Promise((resolve, reject) => {
+                    demuxer.dequeueVideoPacket(resolve);
+                });
+            }
+
+            function decoder_init(codec) {
+                return new Promise((resolve, reject) => {
+                    codec.init(resolve);
+                });
+            }
+
+            function decoder_process_frame(codec, data) {
+                return new Promise((resolve, reject) => {
+                    codec.processFrame(data, (result) => {
+                        if (result) {
+                            resolve(codec.frameBuffer);
+                        } else {
+                            reject('decode failure');
+                        }
+                    });
+                });
+            }
+
+            function log(...items) {
+                let str = items.join(', ');
+                let div = document.createElement('div');
+                div.textContent = str;
+                output.appendChild(div);
+            }
+
+            function frameOk(frame) {
+                return frame.width == 1280
+                    && frame.height == 720;
+            }
+
+            (async function doit() {
+                log('initializing...');
+                let demuxer = await OGVDemuxerWebM({base: 'lib'});
+                let response = await fetch('Graupel_Graupelschauer_2023-04-13_av1.webm');
+                let bytes = await response.arrayBuffer();
+                let packets = [];
+
+                log('demuxing input...');
+                await demuxer_init(demuxer);
+                await demuxer_receive_input(demuxer, bytes);
+                while (true) {
+                    let ret = await demuxer_process(demuxer);
+                    if (!ret) {
+                        break;
+                    }
+                    if (demuxer.frameReady) {
+                        let packet = await demuxer_dequeue_video_packet(demuxer);
+                        packets.push(packet);
+                    }
+                }
+
+                log(`${packets.length} video packet(s) extracted`);
+
+                log('initializing dav1d av1 codec');
+                let codec = await OGVDecoderVideoAV1({
+                    base: 'lib',
+                    videoFormat: demuxer.videoFormat
+                });
+                await decoder_init(codec);
+
+                log('decoding frame 0');
+                let frame0 = await decoder_process_frame(codec, packets[0]);
+                if (frameOk(frame0)) {
+                    log('frame 0 is ok');
+                } else {
+                    log('frame 0 is unexpected');
+                }
+
+                log('decoding frame 1');
+                let frame1 = await decoder_process_frame(codec, packets[1]);
+                if (frameOk(frame1)) {
+                    log('frame 1 is ok');
+                } else {
+                    log('frame 1 is unexpected');
+                }
+            })();
+        </script>
+    </body>
+</html>
